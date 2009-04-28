@@ -73,7 +73,7 @@ main(int argc, char **argv)
 
 	for (p = prog; p; p = p->next) {
 #if debug
-		fprintf(stderr, "\t%c: %d\n", p->value, data->value);
+		fprintf(stderr, "\t%c: %ud\n", p->value, data->value);
 #endif
 		switch (p->value) {
 		case '>':
