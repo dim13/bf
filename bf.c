@@ -71,7 +71,10 @@ main(int argc, char **argv)
 
 	data = alloccell();
 
-	for (p = prog; p; p = p->next)
+	for (p = prog; p; p = p->next) {
+#if debug
+		fprintf(stderr, "\t%c: %d\n", p->value, data->value);
+#endif
 		switch (p->value) {
 		case '>':
 			if (!data->next) {
@@ -104,15 +107,20 @@ main(int argc, char **argv)
 			if (data->value == 0)
 				while (p && p->value != ']')
 					p = p->next;
+				if (!p)
+					goto quit;
 			break;
 		case ']':
 			if (data->value != 0)
 				while (p && p->value != '[')
 					p = p->prev;
+				if (!p)
+					goto quit;
 			break;
 		default:
 			break;
 		}
-
+	}
+quit:
 	return 0;
 }
