@@ -42,21 +42,41 @@ alloccell(void)
 	return c;
 }
 
-Cell *
+void
+freecells(Cell *c)
+{
+	Cell *next;
+
+	while (c->prev)
+		c = c->prev;
+	
+	while (c) {
+		next = c->next;
+		free(c);
+		c = next;
+	}
+}
+
+char *
 readprog(char *fname)
 {
-	Cell *prog, **progp, *prev;
+	char *prog, *p;
 	FILE *fd;
+	size_t len;
 	int ch;
 
 	fd = fopen(fname, "r");
 	assert(fd);
 
-	prog = NULL;
-	progp = &prog;
-	prev = NULL;
+	fseek(fd, 0L, SEEK_END);
+	len = ftell(fd);
+	fseek(fd, 0L, SEEK_SET);
 
-	while ((ch = fgetc(fd)) != EOF) {
+	prog = calloc(len + 1, sizeof(char));
+	assert(prog);
+
+	p = prog;
+	while ((ch = fgetc(fd)) != EOF)
 		switch (ch) {
 		case '>':
 		case '<':
@@ -66,16 +86,11 @@ readprog(char *fname)
 		case '.':
 		case '[':
 		case ']':
-			*progp = alloccell();
-			(*progp)->value = ch;
-			(*progp)->prev = prev;
-			prev = *progp;
-			progp = &(*progp)->next;
+			*p++ = ch;
 			break;
 		default:
 			break;
 		}
-	}
 
 	fclose(fd);
 
@@ -85,7 +100,8 @@ readprog(char *fname)
 int
 main(int argc, char **argv)
 {
-	Cell *data, *prog, *p;
+	Cell *data;
+	char *prog, *p;
 	int loop;
 
 	if (argc != 2)
@@ -94,8 +110,8 @@ main(int argc, char **argv)
 	prog = readprog(argv[1]);
 	data = alloccell();
 
-	for (p = prog; p; p = p->next) {
-		switch (p->value) {
+	for (p = prog; *p; p++)
+		switch (*p) {
 		case '>':
 			if (!data->next) {
 				data->next = alloccell();
@@ -125,27 +141,28 @@ main(int argc, char **argv)
 			break;
 		case '[':
 			if (data->value == 0)
-				for (loop = 0; p; p = p->next) {
-					if (p->value == '[')
+				for (loop = 0; *p; p++) {
+					if (*p == '[')
 						loop++;
-					if (p->value == ']' && --loop == 0)
+					else if (*p == ']' && --loop == 0)
 						break;
 				}
 			break;
 		case ']':
 			if (data->value != 0)
-				for (loop = 0; p; p = p->prev) {
-					if (p->value == ']')
+				for (loop = 0; *p; p--) {
+					if (*p == ']')
 						loop++;
-					if (p->value == '[' && --loop == 0)
+					else if (*p == '[' && --loop == 0)
 						break;
 				}
 			break;
+		default:
+			break;
 		}
 
-		if (!p)
-			break;
-	}
+	free(prog);
+	freecells(data);
 
 	return 0;
 }
