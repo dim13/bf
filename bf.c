@@ -59,22 +59,31 @@ main(int argc, char **argv)
 	progp = &prog;
 	p = NULL;
 
-	while ((ch = fgetc(fd)) != EOF) {
-		*progp = alloccell();
-		(*progp)->value = ch;
-		(*progp)->prev = p;
-		p = *progp;
-		progp = &(*progp)->next;
-	}
+	while ((ch = fgetc(fd)) != EOF)
+		switch (ch) {
+		case '>':
+		case '<':
+		case '+':
+		case '-':
+		case ',':
+		case '.':
+		case '[':
+		case ']':
+			*progp = alloccell();
+			(*progp)->value = ch;
+			(*progp)->prev = p;
+			p = *progp;
+			progp = &(*progp)->next;
+			break;
+		default:
+			break;
+		}
 
 	fclose(fd);
 
 	data = alloccell();
 
-	for (p = prog; p; p = p->next) {
-#if debug
-		fprintf(stderr, "\t%c: %ud\n", p->value, data->value);
-#endif
+	for (p = prog; p; p = p->next)
 		switch (p->value) {
 		case '>':
 			if (!data->next) {
@@ -120,7 +129,7 @@ main(int argc, char **argv)
 		default:
 			break;
 		}
-	}
+
 quit:
 	return 0;
 }
