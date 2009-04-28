@@ -42,24 +42,21 @@ alloccell(void)
 	return c;
 }
 
-int
-main(int argc, char **argv)
+Cell *
+readprog(char *fname)
 {
+	Cell *prog, **progp, *prev;
 	FILE *fd;
-	Cell *data, *prog, **progp, *p;
 	int ch;
 
-	if (argc != 2)
-		return -1;
-
-	fd = fopen(argv[1], "r");
+	fd = fopen(fname, "r");
 	assert(fd);
 
 	prog = NULL;
 	progp = &prog;
-	p = NULL;
+	prev = NULL;
 
-	while ((ch = fgetc(fd)) != EOF)
+	while ((ch = fgetc(fd)) != EOF) {
 		switch (ch) {
 		case '>':
 		case '<':
@@ -71,19 +68,33 @@ main(int argc, char **argv)
 		case ']':
 			*progp = alloccell();
 			(*progp)->value = ch;
-			(*progp)->prev = p;
-			p = *progp;
+			(*progp)->prev = prev;
+			prev = *progp;
 			progp = &(*progp)->next;
 			break;
 		default:
 			break;
 		}
+	}
 
 	fclose(fd);
 
+	return prog;
+}
+
+int
+main(int argc, char **argv)
+{
+	Cell *data, *prog, *p;
+	int loop;
+
+	if (argc != 2)
+		return -1;
+
+	prog = readprog(argv[1]);
 	data = alloccell();
 
-	for (p = prog; p; p = p->next)
+	for (p = prog; p; p = p->next) {
 		switch (p->value) {
 		case '>':
 			if (!data->next) {
@@ -114,22 +125,27 @@ main(int argc, char **argv)
 			break;
 		case '[':
 			if (data->value == 0)
-				while (p && p->value != ']')
-					p = p->next;
-				if (!p)
-					goto quit;
+				for (loop = 0; p; p = p->next) {
+					if (p->value == '[')
+						loop++;
+					if (p->value == ']' && --loop == 0)
+						break;
+				}
 			break;
 		case ']':
 			if (data->value != 0)
-				while (p && p->value != '[')
-					p = p->prev;
-				if (!p)
-					goto quit;
-			break;
-		default:
+				for (loop = 0; p; p = p->prev) {
+					if (p->value == ']')
+						loop++;
+					if (p->value == '[' && --loop == 0)
+						break;
+				}
 			break;
 		}
 
-quit:
+		if (!p)
+			break;
+	}
+
 	return 0;
 }
