@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct cell Cell;
 
@@ -77,20 +78,8 @@ readprog(char *fname)
 
 	p = prog;
 	while ((ch = fgetc(fd)) != EOF)
-		switch (ch) {
-		case '>':
-		case '<':
-		case '+':
-		case '-':
-		case ',':
-		case '.':
-		case '[':
-		case ']':
+		if (strchr("><+-,.[]", ch))
 			*p++ = ch;
-			break;
-		default:
-			break;
-		}
 
 	fclose(fd);
 
