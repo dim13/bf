@@ -58,6 +58,20 @@ freecells(Cell *c)
 	}
 }
 
+void
+dumpcells(Cell *c)
+{
+	while (c->prev)
+		c = c->prev;
+
+	while (c) {
+		printf("0x%-4.2x", c->value);
+		c = c->next;
+	}
+
+	printf("\n");
+}
+
 char *
 readprog(char *fname)
 {
@@ -150,8 +164,9 @@ main(int argc, char **argv)
 			break;
 		}
 
-	free(prog);
+	dumpcells(data);
 	freecells(data);
+	free(prog);
 
 	return 0;
 }
