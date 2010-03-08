@@ -16,6 +16,7 @@
  */
 
 #include <assert.h>
+#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,7 +82,8 @@ readprog(char *fname)
 	int ch;
 
 	fd = fopen(fname, "r");
-	assert(fd);
+	if (!fd)
+		return NULL;
 
 	fseek(fd, 0L, SEEK_END);
 	len = ftell(fd);
@@ -100,17 +102,47 @@ readprog(char *fname)
 	return prog;
 }
 
+void
+usage(void)
+{
+	extern char *__progname;
+
+	fprintf(stderr, "usage: %s [-d] <prog>\n", __progname);
+
+	exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
 	Cell *data;
 	char *prog, *p;
+	int dumpflag = 0;
 	int loop;
+	int c;
 
-	if (argc != 2)
+	while ((c = getopt(argc, argv, "dh")) != -1)
+		switch (c) {
+		case 'd':
+			dumpflag = 1;
+			break;
+		case 'h':	
+		case '?':	
+		default:	
+			usage();
+			/* NOTREACHED */
+		}
+
+	argc -= optind;
+	argv += optind;
+
+	if (!argc)
 		return -1;
 
-	prog = readprog(argv[1]);
+	prog = readprog(*argv);
+	if (!prog)
+		errx(1, "not found: %s", *argv);
+
 	data = alloccell();
 
 	for (p = prog; *p; p++)
@@ -164,7 +196,9 @@ main(int argc, char **argv)
 			break;
 		}
 
-	dumpcells(data);
+	if (dumpflag)
+		dumpcells(data);
+
 	freecells(data);
 	free(prog);
 
