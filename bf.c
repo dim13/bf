@@ -35,12 +35,8 @@ alloccell(void)
 {
 	Cell *c;
 
-	c = malloc(sizeof(Cell));
+	c = calloc(1, sizeof(Cell));
 	assert(c);
-
-	c->value = 0;
-	c->next = NULL;
-	c->prev = NULL;
 
 	return c;
 }
