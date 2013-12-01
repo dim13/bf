@@ -108,38 +108,11 @@ usage(void)
 	exit(1);
 }
 
-int
-main(int argc, char **argv)
+void
+execute(Cell *data, char *prog)
 {
-	Cell *data;
-	char *prog, *p;
-	int dumpflag = 0;
+	char *p;
 	int loop;
-	int c;
-
-	while ((c = getopt(argc, argv, "dh")) != -1)
-		switch (c) {
-		case 'd':
-			dumpflag = 1;
-			break;
-		case 'h':	
-		case '?':	
-		default:	
-			usage();
-			/* NOTREACHED */
-		}
-
-	argc -= optind;
-	argv += optind;
-
-	if (!argc)
-		return -1;
-
-	prog = freadall(*argv);
-	if (!prog)
-		errx(1, "not found: %s", *argv);
-
-	data = alloccell();
 
 	for (p = prog; *p; p++)
 		switch (*p) {
@@ -191,6 +164,40 @@ main(int argc, char **argv)
 		default:
 			break;
 		}
+}
+
+int
+main(int argc, char **argv)
+{
+	Cell *data;
+	char *prog;
+	int dumpflag = 0;
+	int c;
+
+	while ((c = getopt(argc, argv, "dh")) != -1)
+		switch (c) {
+		case 'd':
+			dumpflag = 1;
+			break;
+		case 'h':	
+		case '?':	
+		default:	
+			usage();
+			/* NOTREACHED */
+		}
+
+	argc -= optind;
+	argv += optind;
+
+	if (!argc)
+		return -1;
+
+	prog = freadall(*argv);
+	if (!prog)
+		errx(1, "not found: %s", *argv);
+
+	data = alloccell();
+	execute(data, prog);
 
 	if (dumpflag)
 		dumpcells(data);
