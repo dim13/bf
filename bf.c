@@ -45,33 +45,31 @@ alloccell(void)
 	return c;
 }
 
+Cell *
+rewindcells(Cell *c)
+{
+	while (c->prev)
+		c = c->prev;
+
+	return c;
+}
+
 void
 freecells(Cell *c)
 {
 	Cell *next;
 
-	while (c->prev)
-		c = c->prev;
-	
-	while (c) {
+	for (c = rewindcells(c); c; c = next) {
 		next = c->next;
 		free(c);
-		c = next;
 	}
 }
 
 void
 dumpcells(Cell *c)
 {
-	while (c->prev)
-		c = c->prev;
-
-	while (c) {
-		printf("0x%-4.2x", c->value);
-		c = c->next;
-	}
-
-	printf("\n");
+	for (c = rewindcells(c); c; c = c->next)
+		printf("0x%x\n", c->value);
 }
 
 char *
@@ -108,14 +106,46 @@ usage(void)
 	exit(1);
 }
 
-void
+char *
+walk(char **j, char *p)
+{
+	for (; *p; p++, j++)
+		switch (*p) {
+		case '[':
+			*j = walk(j + 1, p + 1);
+			break;
+		case ']':
+			return p;
+		default:
+			break;
+		}
+
+	return NULL;
+}
+
+char *
+locatejmp(char *prog)
+{
+	for (; *prog; prog++)
+		switch (*prog) {
+		case '[':
+			prog = locatejmp(prog + 1);
+			break;
+		case ']':
+			return prog;
+		default:
+			break;
+		}
+
+	errx(1, "unbalanced loop");
+	/* NOTREACHED */
+}
+
+Cell *
 execute(Cell *data, char *prog)
 {
-	char *p;
-	int loop;
-
-	for (p = prog; *p; p++)
-		switch (*p) {
+	for (; *prog; prog++)
+		switch (*prog) {
 		case '>':
 			if (!data->next) {
 				data->next = alloccell();
@@ -144,26 +174,17 @@ execute(Cell *data, char *prog)
 			data->value = fgetc(stdin);
 			break;
 		case '[':
-			if (data->value == 0)
-				for (loop = 0; *p; p++) {
-					if (*p == '[')
-						loop++;
-					else if (*p == ']' && --loop == 0)
-						break;
-				}
+			while (data->value)
+				data = execute(data, prog + 1);
+			prog = locatejmp(prog + 1);
 			break;
 		case ']':
-			if (data->value != 0)
-				for (loop = 0; *p; p--) {
-					if (*p == ']')
-						loop++;
-					else if (*p == '[' && --loop == 0)
-						break;
-				}
-			break;
+			return data;
 		default:
 			break;
 		}
+
+	return data;
 }
 
 int
