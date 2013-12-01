@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <assert.h>
 #include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +35,8 @@ alloccell(void)
 	Cell *c;
 
 	c = calloc(1, sizeof(Cell));
-	assert(c);
+	if (!c)
+		errx(1, "calloc");
 
 	return c;
 }
@@ -77,14 +77,15 @@ freadall(char *fname)
 
 	fd = fopen(fname, "r");
 	if (!fd)
-		return NULL;
+		errx(1, "cannot open %s", fname);
 
 	fseek(fd, 0L, SEEK_END);
 	len = ftell(fd);
 	fseek(fd, 0L, SEEK_SET);
 
 	buf = calloc(len + 1, sizeof(char));
-	assert(buf);
+	if (!buf)
+		errx(1, "calloc");
 
 	fread(buf, sizeof(char), len, fd);
 	fclose(fd);
@@ -100,23 +101,6 @@ usage(void)
 	fprintf(stderr, "usage: %s [-d] <prog>\n", __progname);
 
 	exit(1);
-}
-
-char *
-walk(char **j, char *p)
-{
-	for (; *p; p++, j++)
-		switch (*p) {
-		case '[':
-			*j = walk(j + 1, p + 1);
-			break;
-		case ']':
-			return p;
-		default:
-			break;
-		}
-
-	return NULL;
 }
 
 char *
