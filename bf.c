@@ -75,12 +75,11 @@ dumpcells(Cell *c)
 }
 
 char *
-readprog(char *fname)
+freadall(char *fname)
 {
-	char *prog, *p;
 	FILE *fd;
+	char *buf;
 	size_t len;
-	int ch;
 
 	fd = fopen(fname, "r");
 	if (!fd)
@@ -90,17 +89,13 @@ readprog(char *fname)
 	len = ftell(fd);
 	fseek(fd, 0L, SEEK_SET);
 
-	prog = calloc(len + 1, sizeof(char));
-	assert(prog);
+	buf = calloc(len + 1, sizeof(char));
+	assert(buf);
 
-	p = prog;
-	while ((ch = fgetc(fd)) != EOF)
-		if (strchr("><+-,.[]", ch))
-			*p++ = ch;
-
+	fread(buf, sizeof(char), len, fd);
 	fclose(fd);
 
-	return prog;
+	return buf;
 }
 
 void
@@ -140,7 +135,7 @@ main(int argc, char **argv)
 	if (!argc)
 		return -1;
 
-	prog = readprog(*argv);
+	prog = freadall(*argv);
 	if (!prog)
 		errx(1, "not found: %s", *argv);
 
