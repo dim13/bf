@@ -190,9 +190,6 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (!argc)
-		return -1;
-
 	prog = freadall(*argv);
 	if (!prog)
 		errx(1, "not found: %s", *argv);
