@@ -190,10 +190,10 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	prog = freadall(*argv);
-	if (!prog)
-		errx(1, "not found: %s", *argv);
+	if (!argc)
+		errx(1, "no argument");
 
+	prog = freadall(*argv);
 	data = alloccell();
 	execute(data, prog);
 
