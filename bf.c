@@ -15,80 +15,41 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/queue.h>
+#include <sys/stat.h>
 #include <err.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-typedef struct cell Cell;
-
 struct cell {
-	char value;
-	Cell *next;
-	Cell *prev;
-};
+	int value;
+	int number;
+	TAILQ_ENTRY(cell) link;
+} *dp, *dpn;
 
-Cell *
-alloccell(void)
-{
-	Cell *c;
-
-	c = calloc(1, sizeof(Cell));
-	if (!c)
-		errx(1, "calloc");
-
-	return c;
-}
-
-Cell *
-rewindcells(Cell *c)
-{
-	while (c->prev)
-		c = c->prev;
-
-	return c;
-}
-
-void
-freecells(Cell *c)
-{
-	Cell *next;
-
-	for (c = rewindcells(c); c; c = next) {
-		next = c->next;
-		free(c);
-	}
-}
-
-void
-dumpcells(Cell *c)
-{
-	for (c = rewindcells(c); c; c = c->next)
-		printf("0x%x\n", c->value);
-}
+TAILQ_HEAD(cells, cell) data;
 
 char *
-freadall(char *fname)
+readall(char *fname)
 {
-	FILE *fd;
+	int fd;
 	char *buf;
-	size_t len;
+	struct stat st;
 
-	fd = fopen(fname, "r");
+	fd = open(fname, O_RDONLY);
 	if (!fd)
 		errx(1, "cannot open %s", fname);
+	fstat(fd, &st);
 
-	fseek(fd, 0L, SEEK_END);
-	len = ftell(fd);
-	fseek(fd, 0L, SEEK_SET);
-
-	buf = calloc(len + 1, sizeof(char));
+	buf = calloc(st.st_size + 1, sizeof(char));
 	if (!buf)
 		errx(1, "calloc");
 
-	fread(buf, sizeof(char), len, fd);
-	fclose(fd);
+	read(fd, buf, st.st_size);
+	close(fd);
 
 	return buf;
 }
@@ -101,18 +62,19 @@ usage(void)
 	fprintf(stderr, "usage: %s [-d] <prog>\n", __progname);
 
 	exit(1);
+	/* NOTREACHED */
 }
 
 char *
-locatejmp(char *prog)
+locatejmp(char *p)
 {
-	for (; *prog; prog++)
-		switch (*prog) {
+	for (; *p; p++)
+		switch (*p) {
 		case '[':
-			prog = locatejmp(prog + 1);
+			p = locatejmp(p + 1);
 			break;
 		case ']':
-			return prog;
+			return p;
 		default:
 			break;
 		}
@@ -121,64 +83,82 @@ locatejmp(char *prog)
 	/* NOTREACHED */
 }
 
-Cell *
-execute(Cell *data, char *prog)
+struct cell *
+alloccell(void)
 {
-	for (; *prog; prog++)
-		switch (*prog) {
+	struct cell *c;
+
+	c = calloc(1, sizeof(struct cell));
+	if (!c)
+		errx(1, "calloc");
+
+	return c;
+}
+
+char *
+execute(char *p)
+{
+	char *jmp;
+
+	for (; *p; p++)
+		switch (*p) {
 		case '>':
-			if (!data->next) {
-				data->next = alloccell();
-				data->next->prev = data;
+			dpn = TAILQ_NEXT(dp, link);
+			if (!dpn) {
+				dpn = alloccell();
+				dpn->number = dp->number + 1;
+				TAILQ_INSERT_TAIL(&data, dpn, link);
 			}
-			data = data->next;
+			dp = dpn;
 			break;
 		case '<':
-			if (!data->prev) {
-				data->prev = alloccell();
-				data->prev->next = data;
+			dpn = TAILQ_PREV(dp, cells, link);
+			if (!dpn) {
+				dpn = alloccell();
+				dpn->number = dp->number - 1;
+				TAILQ_INSERT_HEAD(&data, dpn, link);
 			}
-			data = data->prev;
+			dp = dpn;
 			break;
 		case '+':
-			++data->value;
+			++dp->value;
 			break;
 		case '-':
-			--data->value;
+			--dp->value;
 			break;
 		case '.':
-			fputc(data->value, stdout);
+			fputc(dp->value, stdout);
 			fflush(stdout);
 			break;
 		case ',':
-			data->value = fgetc(stdin);
+			dp->value = fgetc(stdin);
 			break;
 		case '[':
-			while (data->value)
-				data = execute(data, prog + 1);
-			prog = locatejmp(prog + 1);
+			if (!dp->value)
+				jmp = locatejmp(p + 1);
+			else while (dp->value)
+				jmp = execute(p + 1);
+			p = jmp;
 			break;
 		case ']':
-			return data;
+			return p;
 		default:
 			break;
 		}
 
-	return data;
+	return p;
 }
 
 int
 main(int argc, char **argv)
 {
-	Cell *data;
 	char *prog;
-	int dumpflag = 0;
-	int c;
+	int c, dflag = 0;
 
 	while ((c = getopt(argc, argv, "dh")) != -1)
 		switch (c) {
 		case 'd':
-			dumpflag = 1;
+			dflag = 1;
 			break;
 		case 'h':	
 		case '?':	
@@ -193,15 +173,23 @@ main(int argc, char **argv)
 	if (!argc)
 		errx(1, "no argument");
 
-	prog = freadall(*argv);
-	data = alloccell();
-	execute(data, prog);
+	/* init first cell */
+	TAILQ_INIT(&data);
+	dp = alloccell();
+	TAILQ_INSERT_HEAD(&data, dp, link);
 
-	if (dumpflag)
-		dumpcells(data);
-
-	freecells(data);
+	prog = readall(*argv);
+	execute(prog);
 	free(prog);
+
+	/* dump cells */
+	if (dflag)
+		TAILQ_FOREACH(dp, &data, link)
+			printf("%4d: 0x%.8x\n", dp->number, dp->value);
+
+	/* free cells */
+	TAILQ_FOREACH_SAFE(dp, &data, link, dpn)
+		free(dp);
 
 	return 0;
 }
