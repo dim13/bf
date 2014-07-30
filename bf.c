@@ -17,10 +17,10 @@
 
 #if defined(__linux__)
 #include <bsd/sys/queue.h>
+#include <sys/types.h>
 #else
 #include <sys/queue.h>
 #endif
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <err.h>
 #include <fcntl.h>
