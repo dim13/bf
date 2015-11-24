@@ -26,19 +26,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
-struct cell {
-	int value;
-	int number;
-	TAILQ_ENTRY(cell) link;
-} *dp, *dpn;
-
-TAILQ_HEAD(cells, cell) data;
-
 char *
-readall(char *fname)
+readall(char *fname, size_t *len)
 {
 	int fd;
 	char *buf;
@@ -46,14 +37,14 @@ readall(char *fname)
 
 	fd = open(fname, O_RDONLY);
 	if (!fd)
-		errx(1, "cannot open %s", fname);
+		return NULL;
+
 	fstat(fd, &st);
+	*len = st.st_size;
 
-	buf = calloc(st.st_size + 1, sizeof(char));
-	if (!buf)
-		errx(1, "calloc");
+	buf = calloc(*len + 1, sizeof(char));
 
-	read(fd, buf, st.st_size);
+	read(fd, buf, *len);
 	close(fd);
 
 	return buf;
@@ -64,137 +55,107 @@ usage(void)
 {
 	extern char *__progname;
 
-	fprintf(stderr, "usage: %s [-d] <prog>\n", __progname);
-
+	fprintf(stderr, "usage: %s <prog>\n", __progname);
 	exit(1);
 	/* NOTREACHED */
 }
 
 char *
-locatejmp(char *p)
+mkjmptbl(char *prog, char **jmp)
 {
-	for (; *p; p++)
-		switch (*p) {
+	char *to;
+
+	for (; *prog; prog++, jmp++) {
+		switch (*prog) {
 		case '[':
-			p = locatejmp(p + 1);
+			*jmp = to = mkjmptbl(prog + 1, jmp + 1);
+			jmp += to - prog;
+			*jmp = prog;
+			prog = to;
 			break;
 		case ']':
-			return p;
+			return prog;
 		default:
 			break;
 		}
+	}
 
-	errx(1, "unbalanced loop");
-	/* NOTREACHED */
+	return NULL;
 }
 
-struct cell *
-alloccell(void)
+void
+execute(char *data, char *prog, char **jmp, size_t sz)
 {
-	struct cell *c;
+	char *pc = prog;
+	char *dp = data + sz / 4;
 
-	c = calloc(1, sizeof(struct cell));
-	if (!c)
-		errx(1, "calloc");
-
-	return c;
-}
-
-char *
-execute(char *p)
-{
-	char *jmp;
-
-	for (; *p; p++)
-		switch (*p) {
+	for (; *pc; pc++)
+		switch (*pc) {
 		case '>':
-			dpn = TAILQ_NEXT(dp, link);
-			if (!dpn) {
-				dpn = alloccell();
-				dpn->number = dp->number + 1;
-				TAILQ_INSERT_TAIL(&data, dpn, link);
-			}
-			dp = dpn;
+			if (dp - data == sz)
+				errx(1, "memory overflow");
+			++dp;
 			break;
 		case '<':
-			dpn = TAILQ_PREV(dp, cells, link);
-			if (!dpn) {
-				dpn = alloccell();
-				dpn->number = dp->number - 1;
-				TAILQ_INSERT_HEAD(&data, dpn, link);
-			}
-			dp = dpn;
+			if (dp - data == 0)
+				errx(1, "memory underflow");
+			--dp;
 			break;
 		case '+':
-			++dp->value;
+			++*dp;
 			break;
 		case '-':
-			--dp->value;
+			--*dp;
 			break;
 		case '.':
-			fputc(dp->value, stdout);
-			fflush(stdout);
+			fputc(*dp, stdout);
 			break;
 		case ',':
-			dp->value = fgetc(stdin);
+			*dp = fgetc(stdin);
 			break;
 		case '[':
-			if (!dp->value)
-				jmp = locatejmp(p + 1);
-			else while (dp->value)
-				jmp = execute(p + 1);
-			p = jmp;
+			if (*dp == 0)
+				pc = jmp[pc - prog];
 			break;
 		case ']':
-			return p;
+			if (*dp != 0)
+				pc = jmp[pc - prog];
+			break;
 		default:
 			break;
 		}
-
-	return p;
 }
 
 int
 main(int argc, char **argv)
 {
+	char **jmp;
 	char *prog;
-	int c, dflag = 0;
+	char *data;
+	size_t datasz;
+	size_t len;
 
-	while ((c = getopt(argc, argv, "dh")) != -1)
-		switch (c) {
-		case 'd':
-			dflag = 1;
-			break;
-		case 'h':	
-		case '?':	
-		default:	
-			usage();
-			/* NOTREACHED */
-		}
-
-	argc -= optind;
-	argv += optind;
+	argc--;
+	argv++;
 
 	if (!argc)
-		errx(1, "no argument");
+		usage();
+		/* NOTREACHED */
 
-	/* init first cell */
-	TAILQ_INIT(&data);
-	dp = alloccell();
-	TAILQ_INSERT_HEAD(&data, dp, link);
+	prog = readall(*argv, &len);
+	if (!prog)
+		errx(1, "cannot open %s", *argv);
 
-	prog = readall(*argv);
-	execute(prog);
+	datasz = getpagesize();
+	data = calloc(datasz, sizeof(char));
+	jmp = calloc(len, sizeof(char *));
+
+	mkjmptbl(prog, jmp);
+	execute(data, prog, jmp, datasz);
+
+	free(data);
 	free(prog);
-
-	/* dump cells */
-	if (dflag)
-		TAILQ_FOREACH(dp, &data, link)
-			printf("%4d: 0x%.8x\n", dp->number, dp->value);
-
-	/* free cells */
-	TAILQ_FOREACH_SAFE(dp, &data, link, dpn)
-		free(dp);
+	free(jmp);
 
 	return 0;
 }
